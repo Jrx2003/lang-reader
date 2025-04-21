@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Debug Tool</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 8px 16px;
+            background: #4a86e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #3b78e7;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .success {
+            color: #388e3c;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+    </style>
+    <script src="/api-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>API Debug Tool</h1>
+    <p>This tool helps diagnose API connection issues in the Lang Reader application.</p>
+    
+    <div>
+        <h2>API Configuration</h2>
+        <pre id="api-config"></pre>
+        
+        <h2>Test Endpoints</h2>
+        <div>
+            <button onclick="testApiStatus()">Test API Status</button>
+            <button onclick="testApiDiagnostics()">Test API Diagnostics</button>
+            <button onclick="testProjects()">Test Projects API</button>
+            <button onclick="testWithFetch()">Test with Fetch API</button>
+        </div>
+        
+        <div id="results">
+            <h3>Results will appear here</h3>
+        </div>
+    </div>
+
+    <script>
+        // Display API configuration
+        document.getElementById('api-config').textContent = JSON.stringify({
+            baseUrl: window.API_BASE_URL || 'Not configured',
+            axiosBaseUrl: axios.defaults.baseURL || 'Not configured',
+            currentUrl: window.location.href,
+            hostname: window.location.hostname,
+            protocol: window.location.protocol
+        }, null, 2);
+
+        // Helper to show results
+        function showResult(data, isError = false) {
+            const resultsDiv = document.getElementById('results');
+            const resultElement = document.createElement('div');
+            resultElement.className = isError ? 'error' : 'success';
+            
+            if (isError) {
+                resultElement.innerHTML = `<h3>Error</h3><pre>${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}</pre>`;
+            } else {
+                resultElement.innerHTML = `<h3>Success</h3><pre>${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}</pre>`;
+            }
+            
+            resultsDiv.innerHTML = ''; // Clear previous results
+            resultsDiv.appendChild(resultElement);
+        }
+
+        // Test API status
+        async function testApiStatus() {
+            try {
+                const response = await axios.get('/api');
+                showResult(response.data);
+            } catch (error) {
+                showResult({
+                    message: error.message,
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    config: {
+                        url: error.config?.url,
+                        baseURL: error.config?.baseURL,
+                        method: error.config?.method
+                    }
+                }, true);
+            }
+        }
+
+        // Test API diagnostics
+        async function testApiDiagnostics() {
+            try {
+                const response = await axios.get('/api/diagnostics');
+                showResult(response.data);
+            } catch (error) {
+                showResult({
+                    message: error.message,
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    config: {
+                        url: error.config?.url,
+                        baseURL: error.config?.baseURL,
+                        method: error.config?.method
+                    }
+                }, true);
+            }
+        }
+
+        // Test Projects API
+        async function testProjects() {
+            try {
+                const response = await axios.get('/api/projects');
+                showResult(response.data);
+            } catch (error) {
+                showResult({
+                    message: error.message,
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    config: {
+                        url: error.config?.url,
+                        baseURL: error.config?.baseURL,
+                        method: error.config?.method
+                    }
+                }, true);
+            }
+        }
+
+        // Test with Fetch API instead of Axios
+        async function testWithFetch() {
+            try {
+                const baseUrl = window.API_BASE_URL || '';
+                const response = await fetch(`${baseUrl}/projects`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult({
+                    data,
+                    requestUrl: `${baseUrl}/projects`,
+                    responseStatus: response.status,
+                    responseHeaders: Object.fromEntries([...response.headers])
+                });
+            } catch (error) {
+                showResult({
+                    message: error.message,
+                    baseUrl: window.API_BASE_URL,
+                    fullRequestUrl: `${window.API_BASE_URL || ''}/projects`
+                }, true);
+            }
+        }
+    </script>
+</body>
+</html> 

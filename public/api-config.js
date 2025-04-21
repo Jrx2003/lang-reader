@@ -5,25 +5,28 @@
   
   console.log('API Base URL configured:', window.API_BASE_URL);
   
-  // If axios is already loaded, configure it immediately
-  if (window.axios) {
+  // Override axios instance configuration if it exists
+  if (window.axios && window.axios.defaults) {
+    console.log('Directly modifying axios defaults');
     window.axios.defaults.baseURL = window.API_BASE_URL;
-    console.log('Axios configured with base URL:', window.API_BASE_URL);
   }
   
-  // Override axios defaults when it loads if not already loaded
-  const originalAxios = window.axios;
+  // Special handling for Vue instances that might load axios later
+  // Monitor window.axios property to catch when it's set by framework
+  let originalAxios = window.axios;
   Object.defineProperty(window, 'axios', {
     configurable: true,
     get: function() {
       return originalAxios;
     },
     set: function(newAxios) {
+      console.log('Axios instance detected and configured');
       if (newAxios && newAxios.defaults) {
         newAxios.defaults.baseURL = window.API_BASE_URL;
-        console.log('Axios instance configured with base URL:', window.API_BASE_URL);
       }
       originalAxios = newAxios;
     }
   });
+  
+  console.log('API configuration complete - URL will be:', window.API_BASE_URL);
 })(); 

@@ -26,6 +26,10 @@ app.use(morgan('dev'));
 console.log('Setting up API routes...');
 app.use('/api/projects', projectRoutes);
 
+// Get the port from environment or use default
+const PORT = process.env.PORT || 8080;
+console.log(`Using port: ${PORT}`);
+
 // API test route
 app.get('/api/test', (req, res) => {
   console.log('API test route accessed');
@@ -35,7 +39,7 @@ app.get('/api/test', (req, res) => {
     timestamp: new Date().toISOString(),
     env: {
       nodeEnv: process.env.NODE_ENV || 'development',
-      port: process.env.PORT || 3000,
+      port: PORT,
       hostname: req.hostname,
       protocol: req.protocol
     }
@@ -159,10 +163,9 @@ if (!MONGODB_URI) {
       console.log('Connected to in-memory MongoDB');
       
       // Start server
-      const PORT = process.env.PORT || 3000;
       const server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
-        console.log(`API available at http://localhost:${PORT}/api`);
+        console.log(`API available at ${PORT === 80 ? '' : ':' + PORT}/api`);
       });
     } catch (err) {
       console.error('Failed to start in-memory MongoDB:', err);
@@ -213,10 +216,9 @@ if (!MONGODB_URI) {
         });
       
       // Start server
-      const PORT = process.env.PORT || 3000;
       const server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
-        console.log(`API available at http://localhost:${PORT}/api`);
+        console.log(`API available at ${PORT === 80 ? '' : ':' + PORT}/api`);
       });
     })
     .catch(err => {
@@ -226,10 +228,9 @@ if (!MONGODB_URI) {
       // Fall back to starting server without database if in production
       if (process.env.NODE_ENV === 'production') {
         console.log('Starting server without database connection in production mode');
-        const PORT = process.env.PORT || 3000;
         const server = app.listen(PORT, () => {
           console.log(`Server running on port ${PORT} (NO DATABASE CONNECTION)`);
-          console.log(`API available at http://localhost:${PORT}/api`);
+          console.log(`API available at ${PORT === 80 ? '' : ':' + PORT}/api`);
         });
       } else {
         process.exit(1);
