@@ -84,7 +84,24 @@ app.get('/api', (req, res) => {
 
 // Serve static files from the public directory
 console.log('Setting up static file serving...');
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Configure MIME types for static content
+express.static.mime.define({
+  'application/javascript': ['js', 'mjs'],
+  'text/css': ['css'],
+  'image/svg+xml': ['svg'],
+  'application/json': ['json']
+});
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d',
+  // Ensure JavaScript modules are served with the correct content type
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // Handle SPA routing - This should be after API routes
 app.get('*', (req, res) => {
