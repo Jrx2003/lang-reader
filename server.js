@@ -4,9 +4,19 @@ const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
-// Load environment variables
-dotenv.config();
+// 确保.env文件存在并加载环境变量
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+  console.log('Found .env file, loading environment variables...');
+  dotenv.config();
+} else {
+  console.log('No .env file found, using default settings');
+}
+
+// 设置默认MongoDB连接字符串
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://jerryxu2487826822:9TJEFlFrrvtMa9jn@cluster0.6f4w2f5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+console.log('Using MongoDB URI:', MONGODB_URI.replace(/\/\/.*:(.*)@/, '//*****:*****@')); // 安全打印，隐藏密码
 
 // Import routes
 const projectRoutes = require('./routes/projects');
@@ -44,10 +54,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+// 连接到MongoDB
+console.log('Attempting to connect to MongoDB...');
+mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('Connected to MongoDB');
+    console.log('Successfully connected to MongoDB');
     
     // Start server
     const PORT = process.env.PORT || 3000;
@@ -57,5 +68,6 @@ mongoose.connect(process.env.MONGODB_URI)
   })
   .catch(err => {
     console.error('Failed to connect to MongoDB:', err.message);
+    console.log('Please check your MONGODB_URI environment variable or .env file');
     process.exit(1);
   }); 
