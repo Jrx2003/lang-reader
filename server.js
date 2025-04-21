@@ -68,7 +68,7 @@ app.use((err, req, res, next) => {
 });
 
 // Check for MongoDB URI
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.AZURE_COSMOS_CONNECTIONSTRING || process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
   console.error('MongoDB connection string not found!');
