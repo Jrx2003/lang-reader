@@ -42,6 +42,36 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Diagnostic endpoint
+app.get('/api/diagnostics', (req, res) => {
+  console.log('Diagnostics endpoint accessed');
+  res.json({
+    serverInfo: {
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      nodeVersion: process.version,
+      platform: process.platform
+    },
+    request: {
+      hostname: req.hostname,
+      ip: req.ip,
+      path: req.path,
+      protocol: req.protocol,
+      headers: req.headers
+    },
+    environment: {
+      nodeEnv: process.env.NODE_ENV || 'development',
+      port: process.env.PORT || 3000,
+      // Safely check MongoDB URI without exposing credentials
+      hasMongoDBURI: !!process.env.MONGODB_URI,
+      hasCosmosDBURI: !!process.env.AZURE_COSMOS_CONNECTIONSTRING,
+      // Connection state: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+      dbConnectionState: mongoose.connection.readyState
+    }
+  });
+});
+
 // Root route for API status
 app.get('/api', (req, res) => {
   console.log('API status route accessed');
@@ -76,6 +106,32 @@ if (MONGODB_URI && MONGODB_URI.includes("'")) {
   MONGODB_URI = MONGODB_URI.replace(/'/g, '%27');
   console.log('Connection string has been fixed');
 }
+
+// Implement connection retry logic
+const connectWithRetry = (uri, options, maxRetries = 5, delay = 5000) => {
+  console.log(`MongoDB connection attempt ${6 - maxRetries} of 5`);
+  
+  return mongoose.connect(uri, options)
+    .then(connection => {
+      console.log('Successfully connected to MongoDB');
+      return connection;
+    })
+    .catch(err => {
+      if (maxRetries <= 1) {
+        console.error('MongoDB connection failed after multiple attempts:', err.message);
+        throw err;
+      }
+      
+      console.log(`MongoDB connection failed. Retrying in ${delay/1000} seconds... (${maxRetries-1} attempts left)`);
+      console.log('Connection error:', err.message);
+      
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve(connectWithRetry(uri, options, maxRetries - 1, delay));
+        }, delay);
+      });
+    });
+};
 
 if (!MONGODB_URI) {
   console.error('MongoDB connection string not found!');
@@ -128,10 +184,12 @@ if (!MONGODB_URI) {
     // Azure Cosmos DB specific options
     retryWrites: false,
     tlsAllowInvalidCertificates: false, // Secure connection
-    serverSelectionTimeoutMS: 30000, // Increase server selection timeout
-    socketTimeoutMS: 360000, // Increase socket timeout
+    serverSelectionTimeoutMS: 60000, // Increase server selection timeout to 60 seconds
+    socketTimeoutMS: 300000, // Increase socket timeout to 5 minutes
     maxIdleTimeMS: 120000, // Maximum idle time
-    maxPoolSize: 10 // Connection pool size
+    maxPoolSize: 10, // Connection pool size
+    keepAlive: true,
+    keepAliveInitialDelay: 300000 // Keep alive initial delay
   };
   
   // Check if using Azure Cosmos DB connection string
@@ -140,7 +198,8 @@ if (!MONGODB_URI) {
     console.log('Azure Cosmos DB connection string detected, using specialized configuration');
   }
   
-  mongoose.connect(MONGODB_URI, mongooseOptions)
+  // Use retry logic for connection
+  connectWithRetry(MONGODB_URI, mongooseOptions)
     .then(() => {
       console.log('Connected to MongoDB successfully!');
       
@@ -161,35 +220,17 @@ if (!MONGODB_URI) {
       });
     })
     .catch(err => {
-      console.error('Failed to connect to MongoDB:', err.message);
+      console.error('Failed to connect to MongoDB after all attempts:', err.message);
       console.error('Connection string format:', MONGODB_URI.replace(/(mongodb\+srv:\/\/[^:]+:)([^@]+)(@.+)/, '$1****$3'));
-      console.error('Full error:', err);
       
-      // Try alternate connection options
-      if (isCosmosDB) {
-        console.log('Attempting to connect with backup options...');
-        const backupOptions = {
-          ssl: true,
-          replicaSet: 'globaldb',
-          retryWrites: false,
-          maxIdleTimeMS: 120000,
-          authSource: 'admin',
-          authMechanism: 'SCRAM-SHA-256',
-          directConnection: true
-        };
-        
-        mongoose.connect(MONGODB_URI, backupOptions)
-          .then(() => {
-            console.log('Connected to MongoDB with backup options!');
-            const PORT = process.env.PORT || 3000;
-            const server = app.listen(PORT, () => {
-              console.log(`Server running on port ${PORT}`);
-            });
-          })
-          .catch(backupErr => {
-            console.error('Backup connection also failed:', backupErr.message);
-            process.exit(1);
-          });
+      // Fall back to starting server without database if in production
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Starting server without database connection in production mode');
+        const PORT = process.env.PORT || 3000;
+        const server = app.listen(PORT, () => {
+          console.log(`Server running on port ${PORT} (NO DATABASE CONNECTION)`);
+          console.log(`API available at http://localhost:${PORT}/api`);
+        });
       } else {
         process.exit(1);
       }
