@@ -37,8 +37,4 @@ node_modules/
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
-
-# Docker
-.docker
-docker-compose.override.yml 
+*.sw? 

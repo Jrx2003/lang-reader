@@ -6,17 +6,8 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 
-// 确保.env文件存在并加载环境变量
-if (fs.existsSync(path.join(__dirname, '.env'))) {
-  console.log('Found .env file, loading environment variables...');
-  dotenv.config();
-} else {
-  console.log('No .env file found, using default settings');
-}
-
-// 设置默认MongoDB连接字符串
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://jerryxu2487826822:9TJEFlFrrvtMa9jn@cluster0.6f4w2f5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
-console.log('Using MongoDB URI:', MONGODB_URI.replace(/\/\/.*:(.*)@/, '//*****:*****@')); // 安全打印，隐藏密码
+// Load environment variables
+dotenv.config();
 
 // Import routes
 const projectRoutes = require('./routes/projects');
@@ -54,20 +45,62 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 连接到MongoDB
-console.log('Attempting to connect to MongoDB...');
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('Successfully connected to MongoDB');
-    
-    // Start server
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+// Check for MongoDB URI
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('MongoDB connection string not found!');
+  console.error('Please set the MONGODB_URI environment variable.');
+  console.error('You can:');
+  console.error('1. Create a .env file in the root directory with MONGODB_URI=your_connection_string');
+  console.error('2. Or set it in the environment: export MONGODB_URI=your_connection_string (Linux/Mac)');
+  console.error('3. Or set it in the environment: set MONGODB_URI=your_connection_string (Windows)');
+  console.error('4. For GitHub Codespaces, add it in your repository secrets.');
+  
+  // For GitHub Codespaces, trying to use a default in-memory DB for development
+  console.log('Attempting to start with an in-memory MongoDB for development...');
+  
+  const { MongoMemoryServer } = require('mongodb-memory-server');
+  
+  // Create a new instance of MongoMemoryServer
+  async function startServer() {
+    try {
+      const mongod = await MongoMemoryServer.create();
+      const uri = mongod.getUri();
+      console.log('In-memory MongoDB started at:', uri);
+      
+      // Connect to the in-memory database
+      await mongoose.connect(uri);
+      console.log('Connected to in-memory MongoDB');
+      
+      // Start server
+      const PORT = process.env.PORT || 3000;
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    } catch (err) {
+      console.error('Failed to start in-memory MongoDB:', err);
+      console.error('Application will now exit. Please configure MONGODB_URI and try again.');
+      process.exit(1);
+    }
+  }
+  
+  // Try to start with in-memory DB
+  startServer();
+} else {
+  // Connect to MongoDB using the provided URI
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('Connected to MongoDB');
+      
+      // Start server
+      const PORT = process.env.PORT || 3000;
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    })
+    .catch(err => {
+      console.error('Failed to connect to MongoDB:', err.message);
+      process.exit(1);
     });
-  })
-  .catch(err => {
-    console.error('Failed to connect to MongoDB:', err.message);
-    console.log('Please check your MONGODB_URI environment variable or .env file');
-    process.exit(1);
-  }); 
+} 
