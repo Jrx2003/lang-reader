@@ -93,13 +93,46 @@ express.static.mime.define({
   'application/json': ['json']
 });
 
+// Add middleware to modify JavaScript files on the fly - replace hardcoded localhost:3000 references
+app.use((req, res, next) => {
+  // Only process JavaScript files
+  if (req.path.endsWith('.js')) {
+    const originalSend = res.send;
+    
+    res.send = function(body) {
+      // Check if it's a string (JS content)
+      if (typeof body === 'string') {
+        // Replace hardcoded localhost:3000/api references with relative /api
+        const modified = body.replace(/['"]http:\/\/localhost:3000\/api['"]/g, "'/api'")
+                             .replace(/['"]https:\/\/localhost:3000\/api['"]/g, "'/api'");
+        
+        // If modifications were made, log it
+        if (modified !== body) {
+          console.log(`Modified JS file: ${req.path} - replaced hardcoded API URLs`);
+          return originalSend.call(this, modified);
+        }
+      }
+      return originalSend.call(this, body);
+    };
+  }
+  next();
+});
+
+// Serve static files with cache control headers
 app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1d',
-  // Ensure JavaScript modules are served with the correct content type
+  maxAge: '0', // No caching in development
+  etag: false,
+  lastModified: false,
   setHeaders: (res, path) => {
+    // Set proper MIME types
     if (path.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript');
     }
+    
+    // Set no-cache headers for everything
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   }
 }));
 
