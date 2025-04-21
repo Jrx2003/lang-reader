@@ -68,7 +68,14 @@ app.use((err, req, res, next) => {
 });
 
 // Check for MongoDB URI
-const MONGODB_URI = process.env.AZURE_COSMOS_CONNECTIONSTRING || process.env.MONGODB_URI;
+let MONGODB_URI = process.env.AZURE_COSMOS_CONNECTIONSTRING || process.env.MONGODB_URI;
+
+// Handle formatting issues in the connection string
+if (MONGODB_URI && MONGODB_URI.includes("'")) {
+  console.log('Detected single quotes in connection string, fixing...');
+  MONGODB_URI = MONGODB_URI.replace(/'/g, '%27');
+  console.log('Connection string has been fixed');
+}
 
 if (!MONGODB_URI) {
   console.error('MongoDB connection string not found!');
@@ -112,9 +119,39 @@ if (!MONGODB_URI) {
   startServer();
 } else {
   // Connect to MongoDB using the provided URI
-  mongoose.connect(MONGODB_URI)
+  console.log('Attempting to connect to MongoDB...');
+  
+  // Configure Mongoose connection options
+  const mongooseOptions = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    // Azure Cosmos DB specific options
+    retryWrites: false,
+    tlsAllowInvalidCertificates: false, // Secure connection
+    serverSelectionTimeoutMS: 30000, // Increase server selection timeout
+    socketTimeoutMS: 360000, // Increase socket timeout
+    maxIdleTimeMS: 120000, // Maximum idle time
+    maxPoolSize: 10 // Connection pool size
+  };
+  
+  // Check if using Azure Cosmos DB connection string
+  const isCosmosDB = MONGODB_URI.includes('mongocluster.cosmos.azure.com');
+  if (isCosmosDB) {
+    console.log('Azure Cosmos DB connection string detected, using specialized configuration');
+  }
+  
+  mongoose.connect(MONGODB_URI, mongooseOptions)
     .then(() => {
-      console.log('Connected to MongoDB');
+      console.log('Connected to MongoDB successfully!');
+      
+      // Try to list all collections after successful connection
+      mongoose.connection.db.listCollections().toArray()
+        .then(collections => {
+          console.log('Available collections:', collections.map(c => c.name).join(', ') || 'No collections found');
+        })
+        .catch(err => {
+          console.warn('Could not list collections:', err.message);
+        });
       
       // Start server
       const PORT = process.env.PORT || 3000;
@@ -125,6 +162,36 @@ if (!MONGODB_URI) {
     })
     .catch(err => {
       console.error('Failed to connect to MongoDB:', err.message);
-      process.exit(1);
+      console.error('Connection string format:', MONGODB_URI.replace(/(mongodb\+srv:\/\/[^:]+:)([^@]+)(@.+)/, '$1****$3'));
+      console.error('Full error:', err);
+      
+      // Try alternate connection options
+      if (isCosmosDB) {
+        console.log('Attempting to connect with backup options...');
+        const backupOptions = {
+          ssl: true,
+          replicaSet: 'globaldb',
+          retryWrites: false,
+          maxIdleTimeMS: 120000,
+          authSource: 'admin',
+          authMechanism: 'SCRAM-SHA-256',
+          directConnection: true
+        };
+        
+        mongoose.connect(MONGODB_URI, backupOptions)
+          .then(() => {
+            console.log('Connected to MongoDB with backup options!');
+            const PORT = process.env.PORT || 3000;
+            const server = app.listen(PORT, () => {
+              console.log(`Server running on port ${PORT}`);
+            });
+          })
+          .catch(backupErr => {
+            console.error('Backup connection also failed:', backupErr.message);
+            process.exit(1);
+          });
+      } else {
+        process.exit(1);
+      }
     });
 } 
