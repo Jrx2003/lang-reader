@@ -9,6 +9,8 @@ const fs = require('fs');
 // Load environment variables
 dotenv.config();
 
+console.log('Starting Lang Reader API server...');
+
 // Import routes
 const projectRoutes = require('./routes/projects');
 
@@ -21,24 +23,44 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Set up API routes
+console.log('Setting up API routes...');
 app.use('/api/projects', projectRoutes);
+
+// API test route
+app.get('/api/test', (req, res) => {
+  console.log('API test route accessed');
+  res.json({ 
+    success: true, 
+    message: 'API is working correctly',
+    timestamp: new Date().toISOString(),
+    env: {
+      nodeEnv: process.env.NODE_ENV || 'development',
+      port: process.env.PORT || 3000,
+      hostname: req.hostname,
+      protocol: req.protocol
+    }
+  });
+});
 
 // Root route for API status
 app.get('/api', (req, res) => {
+  console.log('API status route accessed');
   res.json({ message: 'Lang Reader API is running' });
 });
 
 // Serve static files from the public directory
+console.log('Setting up static file serving...');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle SPA routing - This should be after API routes
 app.get('*', (req, res) => {
+  console.log(`Serving SPA for path: ${req.path}`);
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error in request:', err.stack);
   res.status(500).json({
     message: 'An error occurred',
     error: process.env.NODE_ENV === 'production' ? {} : err
@@ -75,8 +97,9 @@ if (!MONGODB_URI) {
       
       // Start server
       const PORT = process.env.PORT || 3000;
-      app.listen(PORT, () => {
+      const server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        console.log(`API available at http://localhost:${PORT}/api`);
       });
     } catch (err) {
       console.error('Failed to start in-memory MongoDB:', err);
@@ -95,8 +118,9 @@ if (!MONGODB_URI) {
       
       // Start server
       const PORT = process.env.PORT || 3000;
-      app.listen(PORT, () => {
+      const server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        console.log(`API available at http://localhost:${PORT}/api`);
       });
     })
     .catch(err => {

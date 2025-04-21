@@ -3,8 +3,10 @@ const mongoose = require('mongoose');
 
 // Get all projects
 exports.getAllProjects = async (req, res) => {
+  console.log('API Request: GET /api/projects');
   try {
     const projects = await Project.find().sort({ createdAt: -1 });
+    console.log(`Found ${projects.length} projects`);
     res.status(200).json(projects);
   } catch (error) {
     console.error('Error getting projects:', error);
@@ -14,20 +16,24 @@ exports.getAllProjects = async (req, res) => {
 
 // Get a single project by ID
 exports.getProjectById = async (req, res) => {
+  const { id } = req.params;
+  console.log(`API Request: GET /api/projects/${id}`);
+  
   try {
-    const { id } = req.params;
-    
     // Validate ID format
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      console.log(`Invalid project ID: ${id}`);
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     const project = await Project.findById(id);
     
     if (!project) {
+      console.log(`Project not found with ID: ${id}`);
       return res.status(404).json({ message: 'Project not found' });
     }
     
+    console.log(`Found project: ${project.name}`);
     res.status(200).json(project);
   } catch (error) {
     console.error('Error getting project:', error);
@@ -37,11 +43,15 @@ exports.getProjectById = async (req, res) => {
 
 // Create a new project
 exports.createProject = async (req, res) => {
+  console.log('API Request: POST /api/projects');
+  console.log('Request body:', req.body);
+  
   try {
     const { name, description, videoUrl, breakpoints, notesText } = req.body;
     
     // Ensure required fields are present
     if (!name) {
+      console.log('Missing required field: name');
       return res.status(400).json({ message: 'Project name is required' });
     }
     
@@ -56,6 +66,7 @@ exports.createProject = async (req, res) => {
     });
     
     const savedProject = await project.save();
+    console.log(`Created new project: ${savedProject.name} (ID: ${savedProject._id})`);
     res.status(201).json(savedProject);
   } catch (error) {
     console.error('Error creating project:', error);
@@ -65,12 +76,16 @@ exports.createProject = async (req, res) => {
 
 // Update a project
 exports.updateProject = async (req, res) => {
+  const { id } = req.params;
+  console.log(`API Request: PUT /api/projects/${id}`);
+  console.log('Request body:', req.body);
+  
   try {
-    const { id } = req.params;
     const { name, description, videoUrl, breakpoints, notesText } = req.body;
     
     // Validate ID format
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      console.log(`Invalid project ID: ${id}`);
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
@@ -78,6 +93,7 @@ exports.updateProject = async (req, res) => {
     const project = await Project.findById(id);
     
     if (!project) {
+      console.log(`Project not found with ID: ${id}`);
       return res.status(404).json({ message: 'Project not found' });
     }
     
@@ -89,6 +105,7 @@ exports.updateProject = async (req, res) => {
     if (notesText !== undefined) project.notesText = notesText;
     
     const updatedProject = await project.save();
+    console.log(`Updated project: ${updatedProject.name} (ID: ${updatedProject._id})`);
     res.status(200).json(updatedProject);
   } catch (error) {
     console.error('Error updating project:', error);
@@ -98,21 +115,25 @@ exports.updateProject = async (req, res) => {
 
 // Delete a project
 exports.deleteProject = async (req, res) => {
+  const { id } = req.params;
+  console.log(`API Request: DELETE /api/projects/${id}`);
+  
   try {
-    const { id } = req.params;
-    
     // Validate ID format
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      console.log(`Invalid project ID: ${id}`);
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     const project = await Project.findById(id);
     
     if (!project) {
+      console.log(`Project not found with ID: ${id}`);
       return res.status(404).json({ message: 'Project not found' });
     }
     
     await Project.findByIdAndDelete(id);
+    console.log(`Deleted project with ID: ${id}`);
     res.status(200).json({ message: 'Project deleted successfully' });
   } catch (error) {
     console.error('Error deleting project:', error);
