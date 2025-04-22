@@ -33,20 +33,44 @@ console.log(`Using port: ${PORT}`);
 // API test route
 app.get('/api/test', (req, res) => {
   console.log('API test route accessed');
-  res.json({ 
-    success: true, 
-    message: 'API is working correctly',
-    timestamp: new Date().toISOString(),
-    env: {
-      nodeEnv: process.env.NODE_ENV || 'development',
-      port: PORT,
-      hostname: req.hostname,
-      protocol: req.protocol,
-      host: req.get('host'),
-      origin: req.headers.origin || 'unknown',
-      connection: MONGODB_URI ? (isCosmosDB ? 'Azure Cosmos DB' : 'MongoDB') : 'No database configured'
-    }
-  });
+  try {
+    // Perform a simple database check to verify connection
+    mongoose.connection.db.admin().ping()
+      .then(() => {
+        res.json({
+          success: true,
+          message: 'API is working correctly',
+          timestamp: new Date().toISOString(),
+          db: {
+            connected: mongoose.connection.readyState === 1,
+            name: mongoose.connection.db.databaseName
+          },
+          env: {
+            nodeEnv: process.env.NODE_ENV || 'development',
+            port: PORT,
+            hostname: req.hostname,
+            protocol: req.protocol
+          }
+        });
+      })
+      .catch(err => {
+        console.error('Database ping failed:', err);
+        res.json({
+          success: false,
+          message: 'API is working but database ping failed',
+          error: err.message,
+          timestamp: new Date().toISOString()
+        });
+      });
+  } catch (err) {
+    console.error('API test error:', err);
+    res.json({
+      success: false,
+      message: 'API test encountered an error',
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Diagnostic endpoint
@@ -77,6 +101,41 @@ app.get('/api/diagnostics', (req, res) => {
       dbConnectionState: mongoose.connection.readyState
     }
   });
+});
+
+// Root route for server health check
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>Lang Reader API Server</title>
+        <style>
+          body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 800px; margin: 0 auto; padding: 2rem; }
+          .success { color: green; }
+          .error { color: red; }
+          pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow: auto; }
+        </style>
+      </head>
+      <body>
+        <h1>Lang Reader API Server</h1>
+        <p class="success">✅ Server is running</p>
+        <p>Environment: <strong>${process.env.NODE_ENV || 'development'}</strong></p>
+        <p>Database connection: <strong class="${mongoose.connection.readyState === 1 ? 'success' : 'error'}">
+          ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}
+        </strong></p>
+        <p>Server Time: ${new Date().toISOString()}</p>
+        <p>Node.js Version: ${process.version}</p>
+        <p>API Endpoints:</p>
+        <ul>
+          <li><a href="/api">/api</a> - API Status</li>
+          <li><a href="/api/test">/api/test</a> - API Test</li>
+          <li><a href="/api/diagnostics">/api/diagnostics</a> - API Diagnostics</li>
+          <li><a href="/api/projects">/api/projects</a> - Projects API</li>
+          <li><a href="/debug-api.html">/debug-api.html</a> - API Debug Tool</li>
+        </ul>
+      </body>
+    </html>
+  `);
 });
 
 // Root route for API status
@@ -216,10 +275,9 @@ if (!MONGODB_URI) {
   };
   
   // Check if using Azure Cosmos DB connection string
-  const isCosmosDB = MONGODB_URI.includes('mongocluster.cosmos.azure.com') || MONGODB_URI.includes('documents.azure.com');
+  const isCosmosDB = MONGODB_URI.includes('mongocluster.cosmos.azure.com');
   if (isCosmosDB) {
     console.log('Azure Cosmos DB connection string detected, using specialized configuration');
-    // Add specific settings for CosmosDB if needed
   }
   
   // Use retry logic for connection
@@ -240,8 +298,6 @@ if (!MONGODB_URI) {
       const server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
         console.log(`API available at ${PORT === 80 ? '' : ':' + PORT}/api`);
-        console.log(`Server hostname: ${process.env.WEBSITE_HOSTNAME || 'localhost'}`);
-        console.log(`Running in Azure: ${!!process.env.WEBSITE_SITE_NAME}`);
       });
     })
     .catch(err => {
@@ -254,8 +310,6 @@ if (!MONGODB_URI) {
         const server = app.listen(PORT, () => {
           console.log(`Server running on port ${PORT} (NO DATABASE CONNECTION)`);
           console.log(`API available at ${PORT === 80 ? '' : ':' + PORT}/api`);
-          console.log(`Server hostname: ${process.env.WEBSITE_HOSTNAME || 'localhost'}`);
-          console.log(`Running in Azure: ${!!process.env.WEBSITE_SITE_NAME}`);
         });
       } else {
         process.exit(1);

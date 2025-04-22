@@ -5,12 +5,20 @@ const mongoose = require('mongoose');
 exports.getAllProjects = async (req, res) => {
   console.log('API Request: GET /api/projects');
   try {
+    // Check for valid database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ message: 'Database connection is not established', connected: false });
+    }
+
     const projects = await Project.find().sort({ createdAt: -1 });
     console.log(`Found ${projects.length} projects`);
     res.status(200).json(projects);
   } catch (error) {
     console.error('Error getting projects:', error);
-    res.status(500).json({ message: 'Failed to retrieve projects' });
+    res.status(500).json({ 
+      message: 'Failed to retrieve projects',
+      error: process.env.NODE_ENV === 'production' ? {} : error.message 
+    });
   }
 };
 

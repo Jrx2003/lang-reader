@@ -1,10 +1,7 @@
 // Dynamic API Configuration
 (function() {
-  // Configure API Base URL - Use absolute URL for Azure deployment
-  const isProduction = window.location.hostname !== 'localhost';
-  window.API_BASE_URL = isProduction 
-    ? `${window.location.origin}/api` 
-    : '/api';
+  // Configure API Base URL - ALWAYS use relative path for Azure deployment
+  window.API_BASE_URL = '/api';
   
   console.log('API Base URL configured:', window.API_BASE_URL);
   
